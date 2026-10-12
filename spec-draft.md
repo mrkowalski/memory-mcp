@@ -16,7 +16,7 @@ I want it to be a container so it will be easy to deploy on cloud and quickly mo
 - Git. Memory repo is a separate repo from the MCP memory server repo. MCP server does not manage the repo. It just knows where the directory is.
 - No deployment as I will be running containers via local Docker / Docker compose.
 - Scale: 500 memories per year.
-- Language detection: fastText. Fenced code, urls etc. have to be stripped from the memory before language detection.
+- Language detection: fastText-predict. Fenced code, urls, markup, emails, file paths, etc. have to be stripped from the memory before language detection.
 - All datetimes / timestamps have second precision.
 
 ### configuration
@@ -61,7 +61,7 @@ Memories are always stored in English and are human readable. Memory language mu
 
 ### memory size
 
-Maximum memory length is 300 words; this limit applies to memory body only, frontmatter excluded. If memory length exceeds the limit, is must be rejected by the server. There is a configurable word limit for return queries that applies to the whole returned memory set, set to a 2000 words.
+Maximum memory length is 300 words; this limit applies to memory body only, frontmatter excluded. If memory length exceeds the limit, is must be rejected by the server. There is a configurable word limit for return queries that applies to the whole returned memory set, set to a 2000 words. Word limit is counted on memory bodies.
 
 ## persistence
 
@@ -95,13 +95,13 @@ Memories are re-read fully on each memory request and there is no index. They ar
 - <topic2>
   - ...
 
-`date` is a full UTC ISO timestamp. Output is sorted by date, ascending. Line breaks must be replaced by whitespace.
+`date` is a full UTC ISO timestamp. Output is sorted by date, ascending, separately for each topic. Topics may not be sorted. Line breaks must be replaced by whitespace.
 
 #### retrieval queries
 
 Queries must accept a list of tags for filtering. It must be possible to filter by a combination of tags and AND / OR / NOT relationships between them using the DNF notation (Structured JSON). DNF queries must allow for querying for untagged memories. Each memory can have more than one tag or none. Matching must be exact, i.e. "hour" does not match "hours" nor "hour-mode".
 
-I want an empty query to default to a configurable DNF query. In default config, empty query defaults to memories that have a `default` tag. Invalid tags must be rejected (not matching 'tag format'). Tags are the only query attributes available. No other attributes can be queried.
+I want an empty query to default to a configurable DNF query. Empty query means absent argument and also empty argument value, like empty list of tags. In default config, empty query defaults to memories that have a `default` tag. Invalid tags must be rejected (not matching 'tag format'). Tags are the only query attributes available. No other attributes can be queried.
 
 In queries, tags must be lower case and match the tag format. Server does not normalize tags in queries.
 
@@ -122,9 +122,9 @@ Topic must be 2 or 3 words, lowercase, ASCII, English, stored as words.
 
 ### error handling
 
-As it is possible to edit memories manually, errors must be handled. Malformed frontmatter or any other issue with memory format / validation must result in an error-and-stop when server starts. Errors detected after server startup must result in server responses pointing to a faulty memory file until an error is fixed. Single faulty memory means server is on but for all requests responds with information on which file is broken and does nothing else; same behavior for duplicate UIDs. Unknown front-matter attributes are ignored and preserved. Duplicate uids are fatal. Server-start rules are exactly the same as for re-validation on read.
+As it is possible to edit memories manually, errors must be handled. Malformed frontmatter or any other issue with memory format / validation must result in an error-and-stop when server starts. Errors detected after server startup must result in server responses pointing to a list of faulty memory files until all errors are fixed. Single faulty memory means server is on but for all requests responds with information on which file is broken and does nothing else; same behavior for duplicate UIDs. Unknown front-matter attributes are ignored and preserved. Duplicate uids are fatal. Server-start rules are exactly the same as for re-validation on read.
 
-Configurable confidence threshold for English language detection. Configurable min number of words for the language detection to be enabled.
+Configurable confidence threshold for English language detection. Configurable min number of words for the language detection to be enabled. Defaults: 5 words, confidence threshold 0.7. If length is shorter than min number of words, it is accepted without language detection.
 
 ### concurrency
 
@@ -132,7 +132,7 @@ If conflicts stem from the fact of multiple clients being connected to the memor
 
 ### duplicates
 
-The server does not detect duplicates. It has no duplicate detection logic.
+The server does not detect duplicates; there is no tool for it and it has no duplicate detection logic.
 
 ## single memory life cycle
 

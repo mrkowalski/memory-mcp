@@ -29,11 +29,10 @@ Each memory must have following frontmatter attributes:
 - Client from `clientinfo` that registered the memory.
 - stable unique id
 - 'sensitive' flag for memories that are ... sensitive.
-- A project in which the memory was created. I.e a Claude Desktop project name
 
 ### memory body
 
-Memories are always stored in English and are human readable. Memory langauge must be detected by the MCP server and rejected if it is not in English.
+Memories are always stored in English and are human readable. Memory langauge must be detected by the MCP server and rejected if it is not in English. Memories can be multi-line.
 
 ### memory size
 
@@ -43,7 +42,11 @@ Maximum memory length is 300 words; this limit applies to memory body only, fron
 
 ### storage
 
-Memories are saved as files on a machine local to the MCP server. GIT sync is applied manually. Each memory is a separage markdown file. Filenames must include a combination of [topic]-[date]-[time]. Flat directory structure, no subfolders.
+Memories are saved as files on a machine local to the MCP server. GIT sync is applied manually. Each memory is a separage markdown file. Filenames must include a combination of [topic]-[date]-[time]. Flat directory structure, no subfolders. All files that are not *.md must be ignored. Files without a frontmatter must be considered malformed. Subfolders must be ignored.
+
+### uid
+
+8-char base32 id; collision checked against existing memories.
 
 ### reading
 
@@ -51,37 +54,55 @@ Memories are re-read fully on each memory request and there is no index. They ar
 
 #### request output
 
-- <memory1.date> (<memory1.sensitive>) [#tag, #tag2]: <memory1.body>
-- <memory2.date> (<memory2.sensitive>) [#tag1, #tag2]: <memory2.body>
+- <memory1.uid> <memory1.date> (<memory1.sensitive>) [#tag, #tag2]: <memory1.body>
+- <memory2.uid> <memory2.date> (<memory2.sensitive>) [#tag1, #tag2]: <memory2.body>
+
+`date` is a full UTC ISO timestamp.
 
 output is sorted by date, ascending.
 
 #### retrieval by tags
 
-Queries must accept a list of tags for filtering. It must be possible to filter by a combination of tags and AND / OR relationships between them. For instance: (X AND Y) OR (Y AND Z). Each memory can have more than one tag or none. Tags are stored lower case and must be lower-cased on write. Matching must be exact, i.e. "hour" does not match "hours" nor "hour-mode". Minus sign and digits are the only allowed non-ascii-letter characters.
+Queries must accept a list of tags for filtering. It must be possible to filter by a combination of tags and AND / OR / NOT relationships between them using the DNF notation. Each memory can have more than one tag or none. Tags are stored lower case and must be lower-cased on write. Matching must be exact, i.e. "hour" does not match "hours" nor "hour-mode".
+
+I want an empty query to default to a configurable DNF query. In default config, empty query returns all memories.
+
+Invalid tags must be rejected (not matching ascii-lowercase letters, digits and minus sign).
+
+#### tag format
+
+Minus sign and digits are the only allowed non-ascii-letter characters. Leading and trailing minus sign is not allowed. Leading digits are not allowed.
+
+#### topic format
+
+Topic must be 2 or 3 words, lowercase, English, stored as words.
 
 ### error handling
 
 As it is possible to edit memories manually, errors must be handled. Malformed frontmatter or any issue with reading of a memory must result in an error-and-stop when server starts.
 
+Condigurable confidence threshold for English language detection.
+
 ### concurrency
 
 If conflicts stem from the fact of multiple clients being connected to the memory server, let them be. Race conditions are ok.
 
+### duplicates
+
+The server does not detect duplicated. It can return candidates to an LLM but has no duplicate detection logic.
 
 ## single memory lifecycle
 
 - CRUD. It must be possible to create / update / delete a single memory per LLM request.
-- Create
+- **Create**
     - decided by the LLM. Date and time is taken from the server, LLM does not provide it. Topic must be provided and is preferably matched against a list of existing topics. It is ok to create a new topic and they can be merged afterwards manually. I think I will be using Obisidan for this.
-- Delete; by uid. Delete is setting a deleted field to a deletion date. A system must accept physical manual deletion, too. If anything references an inexistend uid, it must be a warning at most.
-- Update; by uid. Memory update is always a delete + create a new one with 'updated' field set to the previous version. It is ok for a `updated` reference to point nowhere, in case old memories are deleted manually.
-- Sensitive flag: It must act as a tag, but the one with system meaning. It may even be a tag, if it does not interfere with other retrieval logic. Meaning of sensitive: A user may opt out of saving any sensitive memories if an LLM deems them so. User may opt out of retrieving sensitive memories is a certain context. A user my want to verify what intimate memories are stored in the db while talking to an LLM. An LLM may decide itself on if a memory is sensitive and should report it to the user that it did.
+- **Delete**; by uid. Delete is setting a deleted field to a deletion date. A system must accept physical manual deletion, too. If anything references an inexistent uid, it must be a warning at most. Deleted memories are never returned in queries and it is not possible to un-delete.
+- **Update**; by uid. Memory update is always a delete + create a new one with 'updated' field set to the previous version. It is ok for a `updated` reference to point nowhere, in case old memories are deleted manually.
+- **Sensitive flag**: It must act as a tag, but the one with system meaning. It may even be a tag, if it does not interfere with other retrieval logic. Meaning of sensitive: A user may opt out of saving any sensitive memories if an LLM deems them so. User may opt out of retrieving sensitive memories is a certain context. A user my want to verify what intimate memories are stored in the db while talking to an LLM. An LLM may decide itself on if a memory is sensitive and should report it to the user that it did.
 
 ## Requests that will be thrown against an LLM that this MCP must help to fulfill
 
-- "What memories I have from this project?"
-- "What do you remember about <X>", where X is a tag or a set of tags.
+- "What do you remember about <tag-query>", where X is a tag or a set of tags.
 - "What are all topics memories belong to?"
 - "Delete a memory with UID=x"
 - "Create a memory <contents>"

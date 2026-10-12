@@ -61,7 +61,7 @@ Memories are always stored in English and are human readable. Memory language mu
 
 ### memory size
 
-Maximum memory length is 300 words; this limit applies to memory body only, frontmatter excluded. If memory length exceeds the limit, is must be rejected by the server. There is a configurable word limit for return queries that applies to the whole returned memory set, set to a reasonable default.
+Maximum memory length is 300 words; this limit applies to memory body only, frontmatter excluded. If memory length exceeds the limit, is must be rejected by the server. There is a configurable word limit for return queries that applies to the whole returned memory set, set to a 2000 words.
 
 ## persistence
 
@@ -101,7 +101,7 @@ Memories are re-read fully on each memory request and there is no index. They ar
 
 Queries must accept a list of tags for filtering. It must be possible to filter by a combination of tags and AND / OR / NOT relationships between them using the DNF notation (Structured JSON). DNF queries must allow for querying for untagged memories. Each memory can have more than one tag or none. Matching must be exact, i.e. "hour" does not match "hours" nor "hour-mode".
 
-I want an empty query to default to a configurable DNF query. In default config, empty query defaults to memories that have a `default` tag. Invalid tags must be rejected (not matching 'tag format'). Tags are the only query available. No other attributes can be queried.
+I want an empty query to default to a configurable DNF query. In default config, empty query defaults to memories that have a `default` tag. Invalid tags must be rejected (not matching 'tag format'). Tags are the only query attributes available. No other attributes can be queried.
 
 In queries, tags must be lower case and match the tag format. Server does not normalize tags in queries.
 
@@ -114,7 +114,7 @@ Minus sign and digits are the only allowed non-ASCII-letter characters. Leading 
 - `default`. It can be queried and is used in the default DNF query. It can never be set via MCP; it can only be read.
 - `sensitive`. It can be queried and can be set via MCP on user or LLM discretion. LLM should report to a user that a saved memory was considered sensitive.
 
-If the `default` tag appears in a query, it is an error.
+If the `default` tag appears in a create or update query, it is an error.
 
 #### topic format
 
@@ -132,7 +132,7 @@ If conflicts stem from the fact of multiple clients being connected to the memor
 
 ### duplicates
 
-The server does not detect duplicated. It can return candidates to an LLM but has no duplicate detection logic.
+The server does not detect duplicates. It has no duplicate detection logic.
 
 ## single memory life cycle
 

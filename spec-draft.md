@@ -1,10 +1,27 @@
 ## overview
 
-An MCP server designed to remember specific bits of conversations with any genAI model, primarily used with Claude desktop.
+A MCP server designed to remember specific bits of conversations with a genAI model.
 
-## LLM interaction
+## High level overview
 
-A memory can by saved on an explicit user request or when LLM decides so. The MCP server must provide clear instructions to the LLM on it.
+### motivation
+
+- independence of an LLM vendor
+- ownership and transferability of memories
+- custom memory taxonomy, tagging and lineage
+
+### usage
+
+#### when memories should be saved
+
+- user request
+- explicit external information provided in a chat
+- disagreement
+- strong user preference towards something
+
+#### when memories should be retrieved
+
+- always, filtered by tags relevant to the conversation topic
 
 ## technology
 
@@ -12,12 +29,17 @@ I want it to be a container so it will be easy to deploy on cloud and quickly mo
 
 - All code must by in Python 3.14. All must happen via `uv`. pytest with non-strict coverage target of 80%; ruff, mypy strict.
 - MCP framework must be official SDK v2.
-- Docker for containers. Use UID/GID from host.
+- Docker for containers. Use UID/GID from host, via compose.
+- amd64 builds.
 - Git. Memory repo is a separate repo from the MCP memory server repo. MCP server does not manage the repo. It just knows where the directory is.
 - No deployment as I will be running containers via local Docker / Docker compose.
 - Scale: 500 memories per year.
 - Language detection: fastText-predict. Fenced code, urls, markup, emails, file paths, etc. have to be stripped from the memory before language detection.
-- All datetimes / timestamps have second precision.
+- All datetimes / timestamps have second precision; example: 2026-09-23 17:46:07
+
+### logging
+
+Plain text, rotated on each server start.
 
 ### configuration
 
@@ -36,23 +58,25 @@ MCP server must expose a HTTP interface. It will be used with Claude desktop via
 
 #### MCP tools exposed
 
-- create_memory
-- update_memory
-- delete_memory
+- create_memory; returns operation status only
+- update_memory; returns operation status only
+- delete_memory; returns operation status only
 - query_memories
 - list_topics
+  - does not include counts; returns list of topics only; does not fetch from deleted memories
 - list_tags
+  - does not include counts; returns list of tags only; does not fetch from deleted memories
 
 ## single memory structure
 
 Each memory must have following front-matter attributes:
 
-- 'created': datetime, UTC, ISO 8601; required
+- 'created': datetime, UTC; required; example: 2026-09-23 17:46:07
 - 'topic': 2-3 words identifying a broad topic the memory belongs to. An LLM should try to use existing topics before introducing a new one; required
 - 'tags': a list of tags. There can be at most 10 tags per memory. Max tag length is 32 characters. Tag length is at least 2 characters. Leading and trailing hyphens are not allowed. Consecutive hyphens are not allowed; required; empty list if no tags are set.
 - 'uid': stable unique id; fatal error if not unique
 - 'updated': uid of the memory being updated; optional
-- 'deleted': datetime when deleted, UTC, ISO 8601; optional
+- 'deleted': datetime when deleted, UTC; optional; example: 2026-09-23 17:46:07
 - 'origin': user|llm; marks whether a memory creation was explicitly requested by a user or implicitly by LLM; required 
 
 ### memory body
@@ -75,8 +99,7 @@ All *.md files in a memory folder are considered. There is no exclusion list nor
 
 #### filename
 
-Filenames must be [date]-[time]-[uid].md 
-
+Filenames must be [date]-[time]-[uid].md; example: 20261012-145900-7K3QX9M2.md
 Filename / frontmatter mismatch is ignored.
 
 ### uid
@@ -105,6 +128,10 @@ I want an empty query to default to a configurable DNF query. Empty query means 
 
 In queries, tags must be lower case and match the tag format. Server does not normalize tags in queries.
 
+### tags
+
+There is a separate list of tags maintained by the server in a csv file, each line has a tag and usage count, nothing else. `list_tags` returns contents of this file without counts. If a memory is created or updated and contains a tag that does not exist on the list, it is added to it. If a tag is removed or a note with a tag is deleted, the list is updated too. It is enough for tags to be added or counts updated dynamically +1 / -1 and inconsistently. Consistency is re-established on server start, when list of tags is regenerated based on all memories. Tags are never removed from the list automatically, even if their usage count is 0.
+
 #### tag format
 
 Minus sign and digits are the only allowed non-ASCII-letter characters. Leading and trailing minus sign is not allowed. Leading digits are not allowed.
@@ -115,6 +142,10 @@ Minus sign and digits are the only allowed non-ASCII-letter characters. Leading 
 - `sensitive`. It can be queried and can be set via MCP on user or LLM discretion. LLM should report to a user that a saved memory was considered sensitive.
 
 If the `default` tag appears in a create or update query, it is an error.
+
+### topics
+
+There is a separate list of topics maintained by the server in a csv file, each line has a topics and usage count, nothing else. `list_topics` returns contents of this file without counts. If a memory is created or updated and contains a topic that does not exist on the list, it is added to it. If a topic is removed or a note with a topic is deleted, the list is updated too. It is enough for topics to be added or counts updated dynamically +1 / -1 and inconsistently. Consistency is re-established on server start, when list of topics is regenerated based on all memories. Topics are never removed from the list automatically, even if their usage count is 0.
 
 #### topic format
 
@@ -155,3 +186,4 @@ The server does not detect duplicates; there is no tool for it and it has no dup
 ## Initial version scope
 
 - Cloud deployment is out of scope of the initial version. Will be added in later versions.
+- Is primarily going to be used with Claude Desktop.
